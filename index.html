@@ -1,0 +1,1705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Home Safe Tracker</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+/* ── ROOT VARIABLES ── */
+:root{
+  --teal:#1D9E75;--teal-l:#E1F5EE;--teal-d:#0F6E56;
+  --blue:#2563EB;--blue-l:#EFF6FF;--blue-d:#1E40AF;
+  --purple:#7C3AED;--purple-l:#F5F3FF;--purple-d:#5B21B6;
+  --amber:#D97706;--amber-l:#FFFBEB;--amber-d:#92400E;
+  --red:#DC2626;--red-l:#FEF2F2;
+  --gray-l:#F8F8F6;--gray-b:#E4E4E1;--muted:#6B7280;
+  --bg:#F0F0EC;--card:#fff;--text:#111827;
+  --r:14px;--rs:8px;
+}
+
+/* ── DARK MODE ── */
+[data-theme="dark"]{
+  --bg:#111827;--card:#1F2937;--text:#F9FAFB;
+  --gray-l:#374151;--gray-b:#4B5563;--muted:#9CA3AF;
+  --teal-l:#064E3B;--blue-l:#1E3A5F;--purple-l:#2E1065;
+  --amber-l:#451A03;--red-l:#450A0A;
+}
+[data-theme="dark"] input,[data-theme="dark"] select{background:#374151;color:#F9FAFB;border-color:#4B5563;}
+[data-theme="dark"] .modal,[data-theme="dark"] .confirm-modal{background:#1F2937;color:#F9FAFB;}
+[data-theme="dark"] tr:hover td{background:#374151;}
+[data-theme="dark"] .debt-mini{background:#374151;}
+[data-theme="dark"] .budget-div-card{background:#374151;}
+[data-theme="dark"] .month-chart{filter:brightness(.9);}
+
+/* ── RESET ── */
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh;}
+button{font-family:inherit;}
+button:active{transform:scale(0.96);transition:transform 0.08s;}
+
+/* ── TIMEOUT WARNING ── */
+.timeout-warn{position:fixed;top:0;left:0;right:0;background:var(--amber-d);color:#fff;text-align:center;padding:9px 16px;font-size:13px;font-weight:600;z-index:9998;transform:translateY(-100%);transition:transform .3s;pointer-events:none;}
+.timeout-warn.visible{transform:translateY(0);pointer-events:all;}
+
+/* ── LOADING SCREEN ── */
+.loading-screen{position:fixed;inset:0;background:var(--teal-d);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;transition:opacity .4s;}
+.loading-screen.hidden{opacity:0;pointer-events:none;}
+.loading-logo{font-size:48px;margin-bottom:16px;}
+.loading-title{font-size:20px;font-weight:700;color:#fff;margin-bottom:8px;}
+.loading-sub{font-size:13px;color:rgba(255,255,255,.7);margin-bottom:28px;}
+.loading-bar-wrap{width:200px;height:4px;background:rgba(255,255,255,.2);border-radius:4px;overflow:hidden;}
+.loading-bar{height:4px;background:#fff;border-radius:4px;width:0%;transition:width .3s;}
+
+/* ── SKELETON ── */
+.skeleton{background:linear-gradient(90deg,#e8e8e5 25%,#d4d4d0 50%,#e8e8e5 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:var(--rs);}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+[data-theme="dark"] .skeleton{background:linear-gradient(90deg,#374151 25%,#4B5563 50%,#374151 75%);background-size:200% 100%;}
+
+/* ── HEADER ── */
+header{background:var(--teal-d);padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:58px;position:sticky;top:0;z-index:100;}
+.hdr-left h1{font-size:15px;font-weight:700;color:#fff;}
+.hdr-left span{font-size:11px;color:rgba(255,255,255,.65);}
+.hdr-right{display:flex;align-items:center;gap:8px;}
+.safe-pill{background:rgba(255,255,255,.15);border-radius:30px;padding:6px 14px;text-align:right;}
+.safe-pill .lbl{font-size:10px;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.06em;}
+.safe-pill .val{font-size:15px;font-weight:800;color:#fff;line-height:1.2;}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:#4ade80;flex-shrink:0;}
+.sync-dot.syncing{background:#fbbf24;animation:pulse 1s infinite;}
+.sync-dot.error{background:#f87171;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+.sync-label{font-size:11px;color:rgba(255,255,255,.7);}
+.hdr-btn{background:rgba(255,255,255,.15);border:none;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;color:#fff;transition:background .15s;flex-shrink:0;}
+.hdr-btn:hover{background:rgba(255,255,255,.28);}
+.hdr-btn:active{transform:scale(0.90);}
+
+/* ── TABS ── */
+.tabs{background:var(--card);border-bottom:1px solid var(--gray-b);display:flex;overflow-x:auto;scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{flex:none;padding:12px 16px;border:none;background:transparent;cursor:pointer;font-size:13px;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:4px;}
+.tab.active{color:var(--teal-d);border-bottom-color:var(--teal-d);font-weight:700;}
+.tab:hover:not(.active){background:var(--gray-l);}
+.tab-badge{display:inline-flex;align-items:center;justify-content:center;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:10px;min-width:18px;height:18px;padding:0 4px;}
+
+/* ── LAYOUT ── */
+.wrap{max-width:1020px;margin:0 auto;padding:20px 16px;}
+.section{display:none;}
+.section.visible{display:block;animation:sectionIn .18s ease;}
+@keyframes sectionIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── DIVISION CARDS ── */
+.div-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+.div-card{border-radius:var(--r);padding:16px 18px;position:relative;overflow:hidden;}
+.div-qstore{background:linear-gradient(135deg,#065f46,#059669);}
+.div-dar{background:linear-gradient(135deg,#1e3a8a,#2563EB);}
+.div-personal{background:linear-gradient(135deg,#4c1d95,#7C3AED);}
+.div-savings{background:linear-gradient(135deg,#78350f,#D97706);}
+.div-label{font-size:10px;font-weight:700;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;}
+.div-iqd{font-size:18px;font-weight:800;color:#fff;line-height:1.2;}
+.div-usd{font-size:11px;color:rgba(255,255,255,.7);margin-top:3px;}
+.div-icon{position:absolute;right:14px;bottom:10px;font-size:28px;opacity:.2;}
+.div-count{font-size:10px;color:rgba(255,255,255,.5);margin-top:6px;}
+.div-sparkline{margin-top:8px;line-height:0;}
+
+/* ── METRICS ── */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;}
+.metric{background:var(--card);border-radius:var(--r);padding:14px 16px;border:1px solid var(--gray-b);}
+.metric-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;}
+.metric-val{font-size:18px;font-weight:700;}
+.v-in{color:var(--teal-d)}.v-out{color:var(--red)}.v-blue{color:var(--blue-d)}.v-neutral{color:var(--text)}
+
+/* ── CARDS ── */
+.card{background:var(--card);border-radius:var(--r);border:1px solid var(--gray-b);padding:20px;margin-bottom:16px;}
+.card-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:16px;}
+
+/* ── PILLS ── */
+.pill-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
+.pill{padding:6px 13px;border-radius:20px;border:1px solid var(--gray-b);cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);background:transparent;transition:all .15s;}
+.pill.p-on.deposit{background:var(--teal-l);color:var(--teal-d);border-color:var(--teal);}
+.pill.p-on.withdrawal{background:var(--red-l);color:var(--red);border-color:var(--red);}
+.pill.p-on.lent{background:var(--purple-l);color:var(--purple-d);border-color:var(--purple);}
+.pill.p-on.borrowed{background:var(--amber-l);color:var(--amber-d);border-color:var(--amber);}
+.pill.p-on.repay_in{background:var(--teal-l);color:var(--teal-d);border-color:var(--teal);}
+.pill.p-on.repay_out{background:var(--red-l);color:var(--red);border-color:var(--red);}
+.pill.p-on.transfer{background:var(--blue-l);color:var(--blue-d);border-color:var(--blue);}
+
+/* ── FORM ── */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:11px;margin-bottom:14px;}
+label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+input,select{width:100%;padding:9px 11px;border:1px solid var(--gray-b);border-radius:var(--rs);font-size:13px;color:var(--text);background:var(--card);outline:none;transition:border-color .15s;font-family:inherit;}
+input:focus,select:focus{border-color:var(--teal);}
+.btn-add{width:100%;padding:11px;border:none;border-radius:var(--rs);background:var(--teal-d);color:#fff;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px;transition:background .15s;}
+.btn-add:hover{background:var(--teal);}
+.btn-add:disabled{background:var(--muted);cursor:not-allowed;}
+.debt-extra{display:none;}.debt-extra.show{display:contents;}
+
+/* ── FILTER & SEARCH ── */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.filter-bar select{flex:1;min-width:120px;max-width:175px;}
+.search-bar{width:100%;padding:9px 11px 9px 36px;border:1px solid var(--gray-b);border-radius:var(--rs);font-size:13px;background:var(--card);color:var(--text);outline:none;transition:border-color .15s;font-family:inherit;margin-bottom:10px;}
+.search-bar:focus{border-color:var(--teal);}
+.search-wrap{position:relative;margin-bottom:10px;}
+.search-wrap::before{content:"🔍";position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none;}
+
+/* ── EXPORT BUTTONS ── */
+.export-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.btn-export{padding:7px 14px;border:1px solid var(--gray-b);border-radius:var(--rs);background:var(--card);cursor:pointer;font-size:12px;font-weight:600;color:var(--text);transition:all .15s;}
+.btn-export:hover{background:var(--gray-l);}
+
+/* ── TABLE ── */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid var(--gray-b);}
+td{padding:9px 10px;border-bottom:1px solid var(--gray-b);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--gray-l);}
+.badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-block;white-space:nowrap;}
+.b-qstore{background:#D1FAE5;color:#065f46;}
+.b-dar{background:var(--blue-l);color:var(--blue-d);}
+.b-personal{background:var(--purple-l);color:var(--purple-d);}
+.b-savings{background:var(--amber-l);color:var(--amber-d);}
+.b-debt{background:#F3F4F6;color:#374151;}
+[data-theme="dark"] .b-debt{background:#374151;color:#D1D5DB;}
+.t-deposit,.t-repay_in,.t-transfer_in{color:var(--teal-d);font-weight:700;}
+.t-withdrawal,.t-repay_out{color:var(--red);font-weight:700;}
+.t-lent{color:var(--purple-d);font-weight:700;}
+.t-borrowed{color:var(--amber-d);font-weight:700;}
+.t-transfer_out{color:var(--blue-d);font-weight:700;}
+.btn-del{padding:3px 9px;background:transparent;border:1px solid var(--gray-b);border-radius:6px;cursor:pointer;font-size:11px;color:var(--muted);}
+.btn-del:hover{color:var(--red);border-color:var(--red);}
+mark.hl{background:#fef08a;border-radius:2px;padding:0 1px;}
+[data-theme="dark"] mark.hl{background:#854d0e;color:#fef9c3;}
+
+/* ── DEBT CARDS ── */
+.debt-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.debt-section-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;}
+.debt-person{background:var(--card);border:1px solid var(--gray-b);border-radius:var(--r);padding:16px;margin-bottom:10px;transition:border-color .2s;}
+.debt-overdue{border-left:3px solid var(--red) !important;}
+.debt-person-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.debt-name{font-size:14px;font-weight:700;}
+.debt-due{font-size:10px;color:var(--red);font-weight:600;margin-top:2px;}
+.btn-pay{padding:5px 11px;background:transparent;border:1px solid var(--teal);border-radius:6px;cursor:pointer;font-size:11px;color:var(--teal-d);font-weight:700;}
+.btn-pay:hover{background:var(--teal-l);}
+.debt-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.debt-mini{background:var(--gray-l);border-radius:var(--rs);padding:8px;text-align:center;}
+.debt-mini-lbl{font-size:10px;color:var(--muted);margin-bottom:2px;}
+.debt-mini-val{font-size:13px;font-weight:700;}
+.prog-wrap{height:6px;background:var(--gray-b);border-radius:4px;margin-top:10px;}
+.prog-bar{height:6px;border-radius:4px;}
+
+/* ── MONTHLY CHART ── */
+.month-chart{display:flex;gap:4px;align-items:flex-end;height:110px;margin:14px 0 6px;}
+.month-col{flex:1;display:flex;flex-direction:column;align-items:center;}
+.month-bars{display:flex;gap:2px;align-items:flex-end;height:100px;}
+.bar{border-radius:3px 3px 0 0;min-height:2px;}
+.bar-d{background:var(--teal);}
+.bar-w{background:var(--red);opacity:.75;}
+.bar-lbl{font-size:9px;color:var(--muted);margin-top:4px;text-align:center;}
+.month-legend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin-bottom:16px;}
+.month-legend span{display:flex;align-items:center;gap:5px;}
+.leg-dot{width:10px;height:10px;border-radius:2px;display:inline-block;}
+
+/* ── BUDGET ── */
+.budget-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;}
+.budget-div-card{background:var(--gray-l);border-radius:var(--rs);padding:12px;}
+.budget-div-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;}
+.budget-input{max-width:120px;font-size:12px !important;padding:4px 8px !important;}
+.budget-bar-wrap{height:7px;background:var(--gray-b);border-radius:4px;overflow:hidden;margin-top:6px;}
+.budget-bar-fill{height:7px;border-radius:4px;transition:width .4s;}
+
+/* ── MODALS ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--card);border-radius:var(--r);padding:24px;width:90%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.modal h3{font-size:15px;font-weight:700;margin-bottom:16px;}
+.modal-btns{display:flex;gap:8px;margin-top:14px;}
+.btn-cancel{flex:1;padding:10px;border:1px solid var(--gray-b);border-radius:var(--rs);background:transparent;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);}
+.btn-confirm{flex:1;padding:10px;border:none;border-radius:var(--rs);background:var(--teal-d);color:#fff;cursor:pointer;font-size:13px;font-weight:700;}
+.btn-danger{background:var(--red) !important;}
+/* Confirm modal */
+.confirm-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:400;align-items:center;justify-content:center;}
+.confirm-modal-bg.open{display:flex;}
+.confirm-modal{background:var(--card);border-radius:var(--r);padding:24px;width:90%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.confirm-modal p{font-size:14px;margin-bottom:18px;line-height:1.55;color:var(--text);}
+.confirm-modal h3{font-size:15px;font-weight:700;margin-bottom:10px;}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--teal-d);color:#fff;padding:12px 20px;border-radius:var(--r);font-size:13px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;box-shadow:0 8px 30px rgba(0,0,0,.2);}
+.toast.show{opacity:1;}
+.toast.error{background:var(--red);}
+
+/* ── EMPTY STATE ── */
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted);}
+.empty-icon{font-size:40px;margin-bottom:12px;opacity:.7;}
+.empty-state p{font-size:13px;}
+
+/* ── ERROR BANNER ── */
+.error-banner{background:var(--red-l);border:1px solid var(--red);border-radius:var(--rs);padding:12px 16px;margin-bottom:14px;display:none;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:var(--red);}
+.error-banner.visible{display:flex;}
+.btn-retry{padding:5px 12px;border:1px solid var(--red);border-radius:6px;background:transparent;color:var(--red);cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap;}
+.btn-retry:hover{background:var(--red);color:#fff;}
+
+/* ── PRINT ── */
+@media print{
+  *:not(.print-only):not(.print-only *){display:none !important;}
+  .print-only{display:block !important;}
+  body{background:#fff;}
+  .print-header{margin-bottom:20px;}
+  .print-header h2{font-size:18px;font-weight:700;color:#0F6E56;}
+  .print-header p{font-size:12px;color:#666;margin-top:4px;}
+  .print-only table{width:100%;border-collapse:collapse;font-size:11px;}
+  .print-only th{background:#0F6E56;color:#fff;padding:8px;text-align:left;}
+  .print-only td{padding:6px 8px;border-bottom:1px solid #ddd;}
+  .print-only tr:nth-child(even) td{background:#f9f9f9;}
+}
+.print-only{display:none;}
+
+/* ── RESPONSIVE ── */
+@media(max-width:700px){
+  .div-grid{grid-template-columns:1fr 1fr;}
+  .debt-cols{grid-template-columns:1fr;}
+  .filter-bar{flex-direction:column;}
+  .filter-bar select{max-width:100%;}
+  .hdr-left span{display:none;}
+  .safe-pill .val{font-size:13px;}
+}
+@media(max-width:420px){
+  .div-grid{grid-template-columns:1fr;}
+  header{padding:0 12px;}
+  .wrap{padding:14px 10px;}
+  .tab{padding:10px 11px;font-size:12px;}
+  .form-grid{grid-template-columns:1fr;}
+  .export-row{flex-direction:column;}
+  .btn-export{width:100%;}
+}
+@media(max-width:375px){
+  .hdr-btn{width:28px;height:28px;font-size:13px;}
+  .safe-pill{padding:4px 10px;}
+}
+</style>
+</head>
+<body>
+
+<!-- TIMEOUT WARNING -->
+<div class="timeout-warn" id="timeout-warn">Locking in 30s due to inactivity...</div>
+
+<!-- LOCK SCREEN -->
+<div id="lock-screen" style="position:fixed;inset:0;background:var(--teal-d);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;padding:24px;">
+  <div style="font-size:52px;margin-bottom:12px;">🔒</div>
+  <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:6px;">Home Safe</div>
+  <div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:32px;">Enter your password to continue</div>
+  <div style="width:100%;max-width:300px;">
+    <input id="lock-input" type="password" placeholder="Password" autocomplete="current-password" style="width:100%;padding:13px 16px;border:2px solid rgba(255,255,255,.3);border-radius:12px;background:rgba(255,255,255,.1);color:#fff;font-size:16px;outline:none;text-align:center;letter-spacing:2px;margin-bottom:12px;" onkeydown="if(event.key==='Enter')checkPassword()"/>
+    <button onclick="checkPassword()" style="width:100%;padding:13px;border:none;border-radius:12px;background:#fff;color:var(--teal-d);font-size:15px;font-weight:800;cursor:pointer;">Unlock 🔓</button>
+    <div id="lock-error" style="color:#fca5a5;font-size:13px;text-align:center;margin-top:10px;opacity:0;transition:opacity .3s;">Wrong password. Try again.</div>
+  </div>
+</div>
+
+<script>
+// Apply dark mode before anything renders
+if(localStorage.getItem('safe_dark')==='1'){document.documentElement.setAttribute('data-theme','dark');}
+function checkPassword(){
+  const val=document.getElementById('lock-input').value;
+  if(val==='AAaa1122'){
+    document.getElementById('lock-screen').style.display='none';
+    sessionStorage.setItem('unlocked','1');
+    if(typeof resetInactivityTimer==='function') resetInactivityTimer();
+  } else {
+    const err=document.getElementById('lock-error');
+    err.style.opacity='1';
+    document.getElementById('lock-input').value='';
+    setTimeout(()=>err.style.opacity='0',2500);
+  }
+}
+if(sessionStorage.getItem('unlocked')==='1'){
+  document.getElementById('lock-screen').style.display='none';
+}
+</script>
+
+<!-- LOADING SCREEN -->
+<div class="loading-screen" id="loading-screen">
+  <div class="loading-logo">🏦</div>
+  <div class="loading-title">Home Safe Tracker</div>
+  <div class="loading-sub" id="loading-msg">Connecting to Google Sheets...</div>
+  <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
+</div>
+
+<header>
+  <div class="hdr-left">
+    <h1>🏦 Home Safe</h1>
+    <span id="hdr-date"></span>
+  </div>
+  <div class="hdr-right">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span class="sync-label" id="sync-label">Synced</span>
+    </div>
+    <div class="safe-pill">
+      <div class="lbl">Safe Total</div>
+      <div class="val" id="hdr-total">—</div>
+    </div>
+    <button class="hdr-btn" id="btn-refresh" onclick="forceRefresh()" title="Refresh data">↻</button>
+    <button class="hdr-btn" id="btn-settings" onclick="openSettings()" title="Settings">⚙</button>
+    <button class="hdr-btn" id="btn-dark-mode" onclick="toggleDarkMode()" title="Toggle dark mode">🌙</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('dashboard',this)">Dashboard</button>
+  <button class="tab" onclick="switchTab('add',this)">Add Entry</button>
+  <button class="tab" onclick="switchTab('log',this)">Transactions</button>
+  <button class="tab" id="tab-btn-debts" onclick="switchTab('debts',this)">Debts <span class="tab-badge" id="debt-badge" style="display:none">0</span></button>
+  <button class="tab" onclick="switchTab('monthly',this)">Monthly</button>
+</div>
+
+<div class="wrap">
+  <!-- ERROR BANNER -->
+  <div class="error-banner" id="error-banner">
+    <span id="error-msg">⚠ Could not connect to Google Sheets.</span>
+    <button class="btn-retry" onclick="retryLoad()">Retry</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="section visible" id="tab-dashboard">
+    <div class="div-grid" id="div-cards"></div>
+    <div class="metrics" id="dash-metrics"></div>
+    <div class="card">
+      <div class="card-title">Recent transactions</div>
+      <div id="dash-recent"></div>
+    </div>
+  </div>
+
+  <!-- ADD ENTRY -->
+  <div class="section" id="tab-add">
+    <div class="card">
+      <div class="card-title">Entry type</div>
+      <div class="pill-row" id="pill-row"></div>
+      <div class="form-grid">
+        <div id="field-div">
+          <label id="lbl-div">Division</label>
+          <select id="f-div">
+            <option value="qstore">QStore</option>
+            <option value="dar">Dar Aldafa</option>
+            <option value="personal">Personal</option>
+            <option value="savings">Savings</option>
+          </select>
+        </div>
+        <div id="field-to-div" style="display:none">
+          <label>To Division</label>
+          <select id="f-to-div">
+            <option value="qstore">QStore</option>
+            <option value="dar">Dar Aldafa</option>
+            <option value="personal">Personal</option>
+            <option value="savings">Savings</option>
+          </select>
+        </div>
+        <div>
+          <label>Currency</label>
+          <select id="f-cur"><option value="IQD">IQD</option><option value="USD">USD</option></select>
+        </div>
+        <div>
+          <label>Amount</label>
+          <input type="number" id="f-amount" placeholder="0" min="0"/>
+        </div>
+        <div>
+          <label>Source</label>
+          <input type="text" id="f-source" placeholder="e.g. monthly, order..."/>
+        </div>
+        <div>
+          <label>Description</label>
+          <input type="text" id="f-desc" placeholder="e.g. zmc delivery, baba..."/>
+        </div>
+        <div>
+          <label>Date</label>
+          <input type="date" id="f-date"/>
+        </div>
+        <div class="debt-extra" id="de-person">
+          <label id="lbl-person">Person name</label>
+          <input type="text" id="f-person" placeholder="e.g. Ahmed, Sara..."/>
+        </div>
+        <div class="debt-extra">
+          <label>Due date (optional)</label>
+          <input type="date" id="f-due"/>
+        </div>
+        <div id="field-recurring">
+          <label>Recurring</label>
+          <select id="f-recurring">
+            <option value="none">None</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-add" id="btn-add" onclick="addEntry()">Add Entry</button>
+    </div>
+  </div>
+
+  <!-- TRANSACTIONS -->
+  <div class="section" id="tab-log">
+    <div class="card">
+      <div class="card-title">All transactions</div>
+      <div class="export-row">
+        <button class="btn-export" onclick="exportPDF()">⬇ PDF</button>
+        <button class="btn-export" onclick="exportXLSX()">⬇ Excel (.xlsx)</button>
+      </div>
+      <div class="search-wrap">
+        <input class="search-bar" type="text" id="search-input" placeholder="Search description, source, person, amount..."/>
+      </div>
+      <div class="filter-bar">
+        <select id="fl-div" onchange="renderLog()">
+          <option value="all">All divisions</option>
+          <option value="qstore">QStore</option>
+          <option value="dar">Dar Aldafa</option>
+          <option value="personal">Personal</option>
+          <option value="savings">Savings</option>
+          <option value="debt">Debts</option>
+        </select>
+        <select id="fl-type" onchange="renderLog()">
+          <option value="all">All types</option>
+          <option value="Deposit">Deposit</option>
+          <option value="Withdrawal">Withdrawal</option>
+          <option value="lent">Lent</option>
+          <option value="borrowed">Borrowed</option>
+          <option value="repay_in">Repayment in</option>
+          <option value="repay_out">Repayment out</option>
+          <option value="transfer_in">Transfer in</option>
+          <option value="transfer_out">Transfer out</option>
+        </select>
+        <select id="fl-month" onchange="renderLog()">
+          <option value="all">All months</option>
+        </select>
+        <select id="fl-cur" onchange="renderLog()">
+          <option value="all">IQD + USD</option>
+          <option value="IQD">IQD only</option>
+          <option value="USD">USD only</option>
+        </select>
+      </div>
+      <div style="overflow-x:auto;"><div id="log-table"></div></div>
+    </div>
+  </div>
+
+  <!-- DEBTS -->
+  <div class="section" id="tab-debts">
+    <div class="metrics" id="debt-metrics"></div>
+    <div class="debt-cols">
+      <div>
+        <div class="debt-section-title">💰 People who owe me</div>
+        <div id="debt-lent"></div>
+      </div>
+      <div>
+        <div class="debt-section-title">📤 People I owe</div>
+        <div id="debt-borrowed"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MONTHLY -->
+  <div class="section" id="tab-monthly">
+    <div id="budget-section"></div>
+    <div class="card">
+      <div class="card-title">Monthly overview (IQD)</div>
+      <div id="monthly-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- REPAYMENT MODAL -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h3 id="modal-title">Log repayment</h3>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+      <div><label>Amount</label><input type="number" id="m-amount" placeholder="0" min="0"/></div>
+      <div><label>Currency</label><select id="m-cur"><option value="IQD">IQD</option><option value="USD">USD</option></select></div>
+      <div><label>Date</label><input type="date" id="m-date"/></div>
+      <div><label>Note (optional)</label><input type="text" id="m-note" placeholder="partial, full..."/></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-confirm" onclick="submitRepay()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRMATION MODAL -->
+<div class="confirm-modal-bg" id="confirm-modal">
+  <div class="confirm-modal">
+    <h3>⚠ Confirm</h3>
+    <p id="confirm-msg">Are you sure?</p>
+    <div class="modal-btns">
+      <button class="btn-cancel" id="confirm-cancel">Cancel</button>
+      <button class="btn-confirm btn-danger" id="confirm-ok">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-bg" id="settings-modal">
+  <div class="modal">
+    <h3>⚙ Settings</h3>
+    <div style="margin-bottom:14px">
+      <label>IQD per 1 USD (exchange rate)</label>
+      <input type="number" id="s-rate" placeholder="1480" min="1"/>
+      <div style="font-size:11px;color:var(--muted);margin-top:5px;">Used to show USD equivalent totals on the dashboard.</div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeSettings()">Close</button>
+      <button class="btn-confirm" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- PRINT AREA (hidden except when printing) -->
+<div class="print-only" id="print-area"></div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby4Zq_OzZshFOwhOrz1xBBIZPXtDczuTu8knhTZKFjXh_cqx8KRSSciQ--3EP7rU2Va/exec";
+const CACHE_KEY     = 'safe_v5_cache';
+const CACHE_TTL     = 2 * 60 * 1000; // 2 minutes
+const BACKUP_KEY    = 'safe_v4_backup';
+const BUDGET_KEY    = 'safe_budgets';
+const RECURRING_KEY = 'safe_recurring';
+const SETTINGS_KEY  = 'safe_settings';
+
+const DIVS = {
+  qstore:  {label:'QStore',    cls:'div-qstore',  badge:'b-qstore',  icon:'💼'},
+  dar:     {label:'Dar Aldafa',cls:'div-dar',     badge:'b-dar',     icon:'🏢'},
+  personal:{label:'Personal',  cls:'div-personal',badge:'b-personal',icon:'👤'},
+  savings: {label:'Savings',   cls:'div-savings', badge:'b-savings', icon:'🏦'},
+};
+
+const SEED=[
+  {id:1,date:"2025-12-11",div:"qstore",type:"Deposit",source:"qstore",desc:"12 days",currency:"IQD",amount:2704000,signed:2704000,person:"",due:""},
+  {id:2,date:"2025-12-20",div:"qstore",type:"Deposit",source:"qstore",desc:"old money",currency:"IQD",amount:600000,signed:600000,person:"",due:""},
+  {id:3,date:"2025-12-17",div:"qstore",type:"Deposit",source:"qstore",desc:"for azoz usa internet",currency:"IQD",amount:435000,signed:435000,person:"",due:""},
+  {id:4,date:"2025-12-21",div:"qstore",type:"Withdrawal",source:"qstore",desc:"alibaba mini houses + ad",currency:"IQD",amount:3300000,signed:-3300000,person:"",due:""},
+  {id:5,date:"2025-12-25",div:"qstore",type:"Withdrawal",source:"qstore",desc:"plasticbag",currency:"IQD",amount:100000,signed:-100000,person:"",due:""},
+  {id:6,date:"2026-01-03",div:"qstore",type:"Withdrawal",source:"starlink",desc:"debt will be returned",currency:"IQD",amount:25000,signed:-25000,person:"",due:""},
+  {id:7,date:"2026-01-03",div:"qstore",type:"Deposit",source:"qstore",desc:"4 month worth of starlink",currency:"IQD",amount:275000,signed:275000,person:"",due:""},
+  {id:8,date:"2026-01-04",div:"qstore",type:"Deposit",source:"qstore",desc:"monthly",currency:"IQD",amount:892000,signed:892000,person:"",due:""},
+  {id:9,date:"2026-01-06",div:"qstore",type:"Deposit",source:"qstore",desc:"mosul order",currency:"IQD",amount:33000,signed:33000,person:"",due:""},
+  {id:10,date:"2026-01-11",div:"qstore",type:"Withdrawal",source:"qstore",desc:"dar aldafia 54 boxes",currency:"IQD",amount:375000,signed:-375000,person:"",due:""},
+  {id:11,date:"2026-01-17",div:"qstore",type:"Withdrawal",source:"qstore",desc:"color acrylic",currency:"IQD",amount:6000,signed:-6000,person:"",due:""},
+  {id:12,date:"2026-01-17",div:"qstore",type:"Withdrawal",source:"starlink",desc:"paying for 4 months",currency:"IQD",amount:585000,signed:-585000,person:"",due:""},
+  {id:13,date:"2026-01-18",div:"qstore",type:"Deposit",source:"qstore",desc:"17 days of jan",currency:"IQD",amount:3572000,signed:3572000,person:"",due:""},
+  {id:14,date:"2026-01-18",div:"qstore",type:"Withdrawal",source:"qstore",desc:"pay for 2 orders",currency:"IQD",amount:3572000,signed:-3572000,person:"",due:""},
+  {id:15,date:"2026-01-18",div:"qstore",type:"Withdrawal",source:"qstore",desc:"payment ali baba",currency:"IQD",amount:100000,signed:-100000,person:"",due:""},
+  {id:16,date:"2026-01-19",div:"qstore",type:"Deposit",source:"qstore",desc:"order mosul",currency:"IQD",amount:23000,signed:23000,person:"",due:""},
+  {id:17,date:"2026-01-21",div:"qstore",type:"Deposit",source:"qstore",desc:"mosul order",currency:"IQD",amount:60000,signed:60000,person:"",due:""},
+  {id:18,date:"2026-01-21",div:"qstore",type:"Withdrawal",source:"qstore",desc:"ad money",currency:"IQD",amount:200000,signed:-200000,person:"",due:""},
+  {id:19,date:"2026-01-21",div:"qstore",type:"Withdrawal",source:"qstore",desc:"ad money",currency:"IQD",amount:50000,signed:-50000,person:"",due:""},
+  {id:20,date:"2026-01-24",div:"qstore",type:"Deposit",source:"qstore",desc:"delivery",currency:"IQD",amount:70000,signed:70000,person:"",due:""},
+  {id:21,date:"2026-01-28",div:"qstore",type:"Deposit",source:"qstore",desc:"delivery",currency:"IQD",amount:118000,signed:118000,person:"",due:""},
+  {id:22,date:"2026-01-28",div:"qstore",type:"Withdrawal",source:"qstore",desc:"zmc order air",currency:"IQD",amount:232000,signed:-232000,person:"",due:""},
+  {id:23,date:"2026-01-29",div:"qstore",type:"Withdrawal",source:"qstore",desc:"cost",currency:"IQD",amount:37000,signed:-37000,person:"",due:""},
+  {id:24,date:"2026-02-04",div:"qstore",type:"Withdrawal",source:"qstore",desc:"acrylic colors",currency:"IQD",amount:20000,signed:-20000,person:"",due:""},
+  {id:25,date:"2026-02-04",div:"qstore",type:"Deposit",source:"qstore",desc:"monthly money",currency:"IQD",amount:3093000,signed:3093000,person:"",due:""},
+  {id:26,date:"2026-02-07",div:"qstore",type:"Withdrawal",source:"qstore",desc:"debt will be returned",currency:"IQD",amount:115000,signed:-115000,person:"",due:""},
+  {id:27,date:"2026-02-07",div:"qstore",type:"Withdrawal",source:"qstore",desc:"baba",currency:"IQD",amount:550000,signed:-550000,person:"",due:""},
+  {id:28,date:"2026-02-07",div:"qstore",type:"Withdrawal",source:"qstore",desc:"ad money",currency:"IQD",amount:200000,signed:-200000,person:"",due:""},
+  {id:29,date:"2026-02-07",div:"qstore",type:"Withdrawal",source:"qstore",desc:"internet",currency:"IQD",amount:150000,signed:-150000,person:"",due:""},
+  {id:30,date:"2026-02-07",div:"qstore",type:"Deposit",source:"qstore",desc:"internet top shelf",currency:"IQD",amount:150000,signed:150000,person:"",due:""},
+  {id:31,date:"2026-02-07",div:"qstore",type:"Deposit",source:"qstore",desc:"debt returned",currency:"IQD",amount:115000,signed:115000,person:"",due:""},
+  {id:32,date:"2026-02-10",div:"qstore",type:"Withdrawal",source:"qstore",desc:"zmc order SEA",currency:"IQD",amount:375000,signed:-375000,person:"",due:""},
+  {id:33,date:"2026-02-15",div:"qstore",type:"Withdrawal",source:"qstore",desc:"زكاة سنة ٢٠٢٦",currency:"IQD",amount:1500000,signed:-1500000,person:"",due:""},
+  {id:34,date:"2026-02-15",div:"qstore",type:"Deposit",source:"qstore",desc:"mosul order",currency:"IQD",amount:10000,signed:10000,person:"",due:""},
+  {id:35,date:"2026-02-22",div:"qstore",type:"Withdrawal",source:"qstore",desc:"plasticbag",currency:"IQD",amount:260000,signed:-260000,person:"",due:""},
+  {id:36,date:"2026-02-23",div:"qstore",type:"Withdrawal",source:"qstore",desc:"ads",currency:"IQD",amount:100000,signed:-100000,person:"",due:""},
+  {id:37,date:"2026-02-23",div:"qstore",type:"Deposit",source:"qstore",desc:"offline order",currency:"IQD",amount:29000,signed:29000,person:"",due:""},
+  {id:38,date:"2026-02-25",div:"qstore",type:"Withdrawal",source:"qstore",desc:"ads from ranya",currency:"IQD",amount:150000,signed:-150000,person:"",due:""},
+  {id:39,date:"2026-03-04",div:"qstore",type:"Deposit",source:"qstore",desc:"monthly money",currency:"IQD",amount:5050000,signed:5050000,person:"",due:""},
+  {id:40,date:"2026-03-04",div:"qstore",type:"Withdrawal",source:"qstore",desc:"baba",currency:"IQD",amount:550000,signed:-550000,person:"",due:""},
+  {id:41,date:"2026-03-04",div:"qstore",type:"Withdrawal",source:"qstore",desc:"internet",currency:"IQD",amount:150000,signed:-150000,person:"",due:""},
+  {id:42,date:"2026-03-04",div:"qstore",type:"Deposit",source:"qstore",desc:"internet top",currency:"IQD",amount:150000,signed:150000,person:"",due:""},
+  {id:43,date:"2026-03-04",div:"personal",type:"Deposit",source:"ranya",desc:"gift",currency:"IQD",amount:5257000,signed:5257000,person:"",due:""},
+  {id:44,date:"2026-03-05",div:"qstore",type:"Withdrawal",source:"qstore",desc:"zmc",currency:"IQD",amount:270000,signed:-270000,person:"",due:""},
+  {id:45,date:"2026-03-05",div:"qstore",type:"Withdrawal",source:"qstore",desc:"zmc",currency:"IQD",amount:7000,signed:-7000,person:"",due:""},
+  {id:46,date:"2026-03-08",div:"qstore",type:"Deposit",source:"qstore",desc:"order mosul",currency:"IQD",amount:47000,signed:47000,person:"",due:""},
+  {id:47,date:"2026-03-08",div:"qstore",type:"Withdrawal",source:"qstore",desc:"ismael",currency:"IQD",amount:50000,signed:-50000,person:"",due:""},
+  {id:48,date:"2026-03-09",div:"qstore",type:"Withdrawal",source:"qstore",desc:"zena for zayn bed",currency:"IQD",amount:275000,signed:-275000,person:"",due:""},
+  {id:49,date:"2026-03-14",div:"qstore",type:"Deposit",source:"qstore",desc:"mosul order",currency:"IQD",amount:61000,signed:61000,person:"",due:""},
+  {id:50,date:"2026-03-14",div:"qstore",type:"Withdrawal",source:"qstore",desc:"zmc order",currency:"IQD",amount:355000,signed:-355000,person:"",due:""},
+  {id:51,date:"2026-03-16",div:"qstore",type:"Withdrawal",source:"qstore",desc:"money for mama",currency:"IQD",amount:100000,signed:-100000,person:"",due:""},
+  {id:52,date:"2026-03-16",div:"qstore",type:"Withdrawal",source:"qstore",desc:"money for mama",currency:"IQD",amount:100000,signed:-100000,person:"",due:""},
+  {id:53,date:"2026-03-17",div:"qstore",type:"Withdrawal",source:"qstore",desc:"Zmc",currency:"IQD",amount:700000,signed:-700000,person:"",due:""},
+  {id:54,date:"2026-03-19",div:"qstore",type:"Withdrawal",source:"qstore",desc:"for warehouse",currency:"IQD",amount:12000,signed:-12000,person:"",due:""},
+  {id:55,date:"2026-03-22",div:"qstore",type:"Withdrawal",source:"qstore",desc:"eid money for ibrahim",currency:"IQD",amount:52000,signed:-52000,person:"",due:""},
+  {id:56,date:"2026-03-27",div:"qstore",type:"Withdrawal",source:"qstore",desc:"dar aldafia royal",currency:"IQD",amount:2000000,signed:-2000000,person:"",due:""},
+  {id:57,date:"2026-03-27",div:"qstore",type:"Withdrawal",source:"qstore",desc:"ismael",currency:"IQD",amount:9000,signed:-9000,person:"",due:""},
+  {id:58,date:"2026-03-27",div:"qstore",type:"Withdrawal",source:"qstore",desc:"ads from ranya",currency:"IQD",amount:200000,signed:-200000,person:"",due:""},
+  {id:59,date:"2026-04-01",div:"qstore",type:"Withdrawal",source:"qstore",desc:"dar aldiafa",currency:"IQD",amount:35000,signed:-35000,person:"",due:""},
+  {id:60,date:"2026-04-01",div:"qstore",type:"Withdrawal",source:"qstore",desc:"berber",currency:"IQD",amount:15000,signed:-15000,person:"",due:""},
+  {id:61,date:"2026-04-03",div:"qstore",type:"Deposit",source:"qstore",desc:"monthly money",currency:"IQD",amount:6512000,signed:6512000,person:"",due:""},
+  {id:62,date:"2026-04-04",div:"qstore",type:"Deposit",source:"qstore",desc:"zena for zayn bed",currency:"IQD",amount:275000,signed:275000,person:"",due:""},
+  {id:63,date:"2026-04-04",div:"qstore",type:"Withdrawal",source:"qstore",desc:"acrylic colors",currency:"IQD",amount:10000,signed:-10000,person:"",due:""},
+  {id:64,date:"2026-04-04",div:"qstore",type:"Withdrawal",source:"qstore",desc:"baba",currency:"IQD",amount:555000,signed:-555000,person:"",due:""},
+  {id:65,date:"2026-04-04",div:"qstore",type:"Withdrawal",source:"qstore",desc:"internet",currency:"IQD",amount:150000,signed:-150000,person:"",due:""},
+  {id:66,date:"2026-04-04",div:"qstore",type:"Deposit",source:"qstore",desc:"gift",currency:"IQD",amount:5000,signed:5000,person:"",due:""},
+  {id:67,date:"2026-04-08",div:"qstore",type:"Deposit",source:"qstore",desc:"mosul order",currency:"IQD",amount:160000,signed:160000,person:"",due:""},
+  {id:68,date:"2026-04-11",div:"dar",type:"Deposit",source:"dar aldaifa",desc:"abo ibrahim + vaza",currency:"USD",amount:4100,signed:4100,person:"",due:""},
+  {id:69,date:"2026-04-11",div:"dar",type:"Deposit",source:"dar aldaifa",desc:"delivery",currency:"IQD",amount:28000,signed:28000,person:"",due:""},
+  {id:70,date:"2026-04-12",div:"qstore",type:"Withdrawal",source:"qstore",desc:"zmc delivery",currency:"IQD",amount:340000,signed:-340000,person:"",due:""},
+  {id:71,date:"2026-04-12",div:"qstore",type:"Deposit",source:"qstore",desc:"samoon",currency:"IQD",amount:1000,signed:1000,person:"",due:""},
+  {id:72,date:"2026-04-13",div:"dar",type:"Withdrawal",source:"dar aldaifa",desc:"ayman uncle",currency:"USD",amount:4000,signed:-4000,person:"",due:""},
+  {id:73,date:"2026-04-17",div:"qstore",type:"Deposit",source:"qstore",desc:"dar aldiafa debt",currency:"IQD",amount:2375000,signed:2375000,person:"",due:""},
+  {id:74,date:"2026-04-17",div:"dar",type:"Deposit",source:"dar aldaifa",desc:"money from delivery",currency:"IQD",amount:3181500,signed:3181500,person:"",due:""},
+  {id:75,date:"2026-04-21",div:"qstore",type:"Withdrawal",source:"qstore",desc:"money for ad",currency:"IQD",amount:565000,signed:-565000,person:"",due:""},
+  {id:76,date:"2026-04-21",div:"qstore",type:"Withdrawal",source:"qstore",desc:"zmc",currency:"IQD",amount:100000,signed:-100000,person:"",due:""},
+  {id:77,date:"2026-04-22",div:"qstore",type:"Withdrawal",source:"qstore",desc:"debt will be returned",currency:"IQD",amount:2000000,signed:-2000000,person:"",due:""},
+  {id:78,date:"2026-04-22",div:"personal",type:"Deposit",source:"qstore",desc:"ranya from qstore",currency:"IQD",amount:2000000,signed:2000000,person:"",due:""}
+];
+
+// ── STATE ───────────────────────────────────────────────────────
+let entries = [];
+let isSyncing = false;
+let curType = 'Deposit';
+let mCtx = null;
+let confirmCallback = null;
+/** @type {{rate:number}} */
+let settings = { rate: 1480 };
+
+// ── CACHE MODULE ─────────────────────────────────────────────────
+/** @returns {Array|null} cached entries or null if expired/missing */
+function getCached() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { ts, data } = JSON.parse(raw);
+    if (Date.now() - ts < CACHE_TTL) return data;
+    return null;
+  } catch(e) { return null; }
+}
+
+/** @param {Array} data */
+function setCache(data) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch(e) {}
+}
+
+function clearCache() {
+  localStorage.removeItem(CACHE_KEY);
+}
+
+// ── SETTINGS MODULE ──────────────────────────────────────────────
+function loadSettings() {
+  try {
+    const stored = localStorage.getItem(SETTINGS_KEY);
+    if (stored) settings = { ...settings, ...JSON.parse(stored) };
+  } catch(e) {}
+}
+
+function openSettings() {
+  document.getElementById('s-rate').value = settings.rate;
+  document.getElementById('settings-modal').classList.add('open');
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+
+function saveSettings() {
+  const rate = parseFloat(document.getElementById('s-rate').value);
+  if (rate > 0) {
+    settings.rate = rate;
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch(e) {}
+    renderDashboard();
+    toast('Settings saved!');
+  }
+  closeSettings();
+}
+
+// ── DARK MODE MODULE ─────────────────────────────────────────────
+function initDarkMode() {
+  const isDark = localStorage.getItem('safe_dark') === '1';
+  applyDark(isDark);
+}
+
+function toggleDarkMode() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  applyDark(!isDark);
+  try { localStorage.setItem('safe_dark', isDark ? '0' : '1'); } catch(e) {}
+}
+
+/** @param {boolean} on */
+function applyDark(on) {
+  document.documentElement.setAttribute('data-theme', on ? 'dark' : 'light');
+  const btn = document.getElementById('btn-dark-mode');
+  if (btn) btn.textContent = on ? '☀️' : '🌙';
+}
+
+// ── AUTH / LOCK MODULE ───────────────────────────────────────────
+const INACTIVITY_MS = 5 * 60 * 1000;
+const WARNING_MS    = 30 * 1000;
+let inactivityTimer, warningTimer, warnInterval;
+
+/** Reset the inactivity countdown (called on any user activity) */
+function resetInactivityTimer() {
+  clearTimeout(inactivityTimer);
+  clearTimeout(warningTimer);
+  clearInterval(warnInterval);
+  hideTimeoutWarning();
+  warningTimer    = setTimeout(showTimeoutWarning, INACTIVITY_MS - WARNING_MS);
+  inactivityTimer = setTimeout(lockApp, INACTIVITY_MS);
+}
+
+function showTimeoutWarning() {
+  let secs = 30;
+  const bar = document.getElementById('timeout-warn');
+  bar.textContent = `Locking in ${secs}s due to inactivity — click anywhere to stay`;
+  bar.classList.add('visible');
+  warnInterval = setInterval(() => {
+    secs--;
+    bar.textContent = `Locking in ${secs}s due to inactivity — click anywhere to stay`;
+    if (secs <= 0) clearInterval(warnInterval);
+  }, 1000);
+}
+
+function hideTimeoutWarning() {
+  document.getElementById('timeout-warn').classList.remove('visible');
+}
+
+function lockApp() {
+  hideTimeoutWarning();
+  clearCache();
+  document.getElementById('lock-screen').style.display = 'flex';
+  sessionStorage.removeItem('unlocked');
+}
+
+['click','keydown','mousemove','touchstart','scroll'].forEach(ev =>
+  document.addEventListener(ev, resetInactivityTimer, { passive: true })
+);
+
+// ── SYNC MODULE ──────────────────────────────────────────────────
+/** @param {'synced'|'syncing'|'error'|'loading'} status */
+function setSyncStatus(status) {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  dot.className = 'sync-dot' + (status === 'syncing' ? ' syncing' : status === 'error' ? ' error' : '');
+  lbl.textContent = status === 'syncing' ? 'Saving...' : status === 'error' ? 'Offline' : status === 'loading' ? 'Loading...' : 'Synced';
+}
+
+/** @param {string} url @returns {Promise<any>} */
+function jsonpGet(url) {
+  return new Promise((resolve, reject) => {
+    const cb = 'cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      delete window[cb];
+      if (script.parentNode) document.body.removeChild(script);
+      reject(new Error('Timeout'));
+    }, 15000);
+    window[cb] = (data) => {
+      clearTimeout(timer);
+      delete window[cb];
+      if (script.parentNode) document.body.removeChild(script);
+      resolve(data);
+    };
+    script.onerror = () => {
+      clearTimeout(timer);
+      delete window[cb];
+      if (script.parentNode) document.body.removeChild(script);
+      reject(new Error('Script load error'));
+    };
+    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
+    document.body.appendChild(script);
+  });
+}
+
+/**
+ * Load entries from Google Sheets or cache.
+ * @param {boolean} forceRefresh - bypass cache
+ */
+async function loadFromSheets(forceRefresh = false) {
+  // Use cache if fresh and not forced
+  if (!forceRefresh) {
+    const cached = getCached();
+    if (cached) {
+      entries = cached;
+      setSyncStatus('synced');
+      hideErrorBanner();
+      return true;
+    }
+  }
+  try {
+    setSyncStatus('loading');
+    setLoadingMsg('Loading your data...', 40);
+    const data = await jsonpGet(SCRIPT_URL + '?action=load');
+    if (data.status === 'ok' && data.entries && data.entries.length > 0) {
+      entries = data.entries.map(e => ({
+        id:       Number(e.id),
+        date:     String(e.date || ''),
+        div:      String(e.div || 'qstore'),
+        type:     String(e.type || 'Deposit'),
+        source:   String(e.source || ''),
+        desc:     String(e.desc || ''),
+        currency: String(e.currency || 'IQD'),
+        amount:   Number(e.amount || 0),
+        signed:   Number(e.signed || 0),
+        person:   String(e.person || ''),
+        due:      String(e.due || '')
+      }));
+      setLoadingMsg('Data loaded!', 100);
+      setSyncStatus('synced');
+      setCache(entries);
+      hideErrorBanner();
+      return true;
+    } else {
+      // No data — seed and save
+      entries = SEED;
+      setLoadingMsg('Setting up your data...', 70);
+      await saveToSheets();
+      return true;
+    }
+  } catch(e) {
+    const stored = localStorage.getItem(BACKUP_KEY);
+    entries = stored ? JSON.parse(stored) : SEED;
+    setSyncStatus('error');
+    showErrorBanner('Could not connect to Google Sheets. Showing local data.');
+    return false;
+  }
+}
+
+/** Save all entries to Google Sheets (optimized: no verify-read) */
+async function saveToSheets() {
+  if (isSyncing) return;
+  isSyncing = true;
+  setSyncStatus('syncing');
+  // Update local backups immediately
+  try { localStorage.setItem(BACKUP_KEY, JSON.stringify(entries)); } catch(e) {}
+  setCache(entries);
+  try {
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'action=save&data=' + encodeURIComponent(JSON.stringify(entries))
+    });
+    setSyncStatus('synced');
+  } catch(e) {
+    setSyncStatus('error');
+    toast('Saved locally — check connection', true);
+  }
+  isSyncing = false;
+}
+
+/** Force re-fetch from Sheets, bypassing cache */
+async function forceRefresh() {
+  clearCache();
+  document.getElementById('btn-refresh').style.opacity = '0.5';
+  await loadFromSheets(true);
+  renderAll();
+  if (document.querySelector('.tab.active')?.textContent?.includes('Trans')) renderLog();
+  document.getElementById('btn-refresh').style.opacity = '1';
+  toast('Data refreshed!');
+}
+
+function showErrorBanner(msg) {
+  const b = document.getElementById('error-banner');
+  document.getElementById('error-msg').textContent = '⚠ ' + msg;
+  b.classList.add('visible');
+}
+
+function hideErrorBanner() {
+  document.getElementById('error-banner').classList.remove('visible');
+}
+
+async function retryLoad() {
+  hideErrorBanner();
+  await loadFromSheets(true);
+  renderAll();
+}
+
+function setLoadingMsg(msg, pct) {
+  document.getElementById('loading-msg').textContent = msg;
+  document.getElementById('loading-bar').style.width = pct + '%';
+}
+
+// ── UTILS MODULE ─────────────────────────────────────────────────
+/**
+ * Escape HTML special characters.
+ * @param {*} s
+ * @returns {string}
+ */
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/**
+ * Highlight search term in text (HTML-safe).
+ * @param {*} raw - raw text to display
+ * @param {string} term - search term
+ * @returns {string} HTML string with <mark> tags
+ */
+function highlight(raw, term) {
+  const escaped = escHtml(raw);
+  if (!term) return escaped;
+  const safeTerm = escHtml(term).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return escaped.replace(new RegExp('(' + safeTerm + ')', 'gi'), '<mark class="hl">$1</mark>');
+}
+
+/**
+ * Format a number as IQD or USD.
+ * @param {number} v
+ * @param {'IQD'|'USD'} cur
+ */
+function fmt(v, cur) {
+  if (cur === 'USD') return '$' + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  return Math.abs(v).toLocaleString('en-US', {maximumFractionDigits:0}) + ' IQD';
+}
+
+/**
+ * Return human-readable label for transaction type.
+ * @param {string} t
+ */
+function typeLabel(t) {
+  return {
+    Deposit:'Deposit', Withdrawal:'Withdrawal',
+    lent:'Lent out', borrowed:'Borrowed',
+    repay_in:'Repayment in', repay_out:'Repayment out',
+    transfer_in:'Transfer in', transfer_out:'Transfer out'
+  }[t] || t;
+}
+
+/**
+ * Debounce a function.
+ * @param {Function} fn
+ * @param {number} ms
+ */
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+/**
+ * Calculate per-division balances from entries.
+ * @returns {Object}
+ */
+function divBals() {
+  const b = {};
+  Object.keys(DIVS).forEach(d => b[d] = { IQD: 0, USD: 0, count: 0 });
+  entries.forEach(e => {
+    if (!b[e.div]) return;
+    b[e.div][e.currency] += e.signed;
+    b[e.div].count++;
+  });
+  return b;
+}
+
+/**
+ * Calculate total across all divisions.
+ * @returns {{IQD:number, USD:number}}
+ */
+function safeTotal() {
+  const b = divBals();
+  return {
+    IQD: Object.values(b).reduce((s, v) => s + v.IQD, 0),
+    USD: Object.values(b).reduce((s, v) => s + v.USD, 0)
+  };
+}
+
+/**
+ * Get 30-day running IQD balance array for a division (for sparklines).
+ * @param {string} divKey
+ * @returns {number[]}
+ */
+function divSparklineData(divKey) {
+  const today = new Date();
+  const days = Array.from({length:30}, (_,i) => {
+    const d = new Date(today); d.setDate(d.getDate() - (29 - i));
+    return d.toISOString().split('T')[0];
+  });
+  const byDate = {};
+  let runningBase = 0;
+  const divEntries = entries.filter(e => e.div === divKey && e.currency === 'IQD');
+  divEntries.sort((a,b) => a.date.localeCompare(b.date));
+  divEntries.forEach(e => {
+    if (e.date < days[0]) { runningBase += e.signed; }
+    else { byDate[e.date] = (byDate[e.date] || 0) + e.signed; }
+  });
+  let running = runningBase;
+  return days.map(d => { running += (byDate[d] || 0); return running; });
+}
+
+/**
+ * Render an SVG sparkline from a data array.
+ * @param {number[]} data
+ * @returns {string} SVG HTML string
+ */
+function sparklineSVG(data) {
+  if (!data || data.length < 2) return '';
+  const W = 78, H = 26;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+  const pts = data.map((v, i) =>
+    `${((i / (data.length - 1)) * W).toFixed(1)},${(H - ((v - min) / range) * H).toFixed(1)}`
+  ).join(' ');
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><polyline points="${pts}" fill="none" stroke="rgba(255,255,255,.75)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+
+// ── RENDER: DASHBOARD ────────────────────────────────────────────
+/** Render the dashboard tab (division cards, metrics, recent). */
+function renderDashboard() {
+  const b = divBals();
+  const tot = safeTotal();
+  const usdEquiv = (tot.IQD / settings.rate) + tot.USD;
+
+  // Header total
+  let h = tot.IQD.toLocaleString('en-US', {maximumFractionDigits:0}) + ' IQD';
+  if (tot.USD !== 0) h += ' + $' + Math.abs(tot.USD).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  document.getElementById('hdr-total').textContent = h;
+
+  // Division cards with sparklines
+  document.getElementById('div-cards').innerHTML = Object.entries(DIVS).map(([k, d]) => {
+    const bal = b[k] || {IQD:0, USD:0, count:0};
+    const usd = bal.USD !== 0 ? `<div class="div-usd">${fmt(bal.USD,'USD')}</div>` : '';
+    const spark = sparklineSVG(divSparklineData(k));
+    return `<div class="div-card ${d.cls}">
+      <div class="div-label">${d.label}</div>
+      <div class="div-iqd">${fmt(bal.IQD,'IQD')}</div>
+      ${usd}
+      <div class="div-count">${bal.count} transactions</div>
+      ${spark ? `<div class="div-sparkline">${spark}</div>` : ''}
+      <div class="div-icon">${d.icon}</div>
+    </div>`;
+  }).join('');
+
+  // Metrics
+  let dIQD=0, wIQD=0, dUSD=0;
+  entries.forEach(e => {
+    if (e.type==='Deposit')    { e.currency==='IQD' ? dIQD+=e.amount : dUSD+=e.amount; }
+    if (e.type==='Withdrawal') { e.currency==='IQD' ? wIQD+=e.amount : 0; }
+  });
+  document.getElementById('dash-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Total in (IQD)</div><div class="metric-val v-in">${fmt(dIQD,'IQD')}</div></div>
+    <div class="metric"><div class="metric-label">Total out (IQD)</div><div class="metric-val v-out">${fmt(wIQD,'IQD')}</div></div>
+    <div class="metric"><div class="metric-label">USD in safe</div><div class="metric-val v-blue">${fmt(tot.USD,'USD')}</div></div>
+    <div class="metric"><div class="metric-label">≈ USD equivalent</div><div class="metric-val v-blue">$${usdEquiv.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div></div>
+    <div class="metric"><div class="metric-label">Total entries</div><div class="metric-val v-neutral">${entries.length}</div></div>`;
+
+  // Recent transactions
+  const recent = entries.slice(0, 8);
+  if (!recent.length) {
+    document.getElementById('dash-recent').innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>No entries yet — add one in the Add Entry tab.</p></div>';
+    return;
+  }
+  let tbl = '<table><thead><tr><th>Date</th><th>Division</th><th>Type</th><th>Amount</th><th>Description</th></tr></thead><tbody>';
+  recent.forEach(e => {
+    const d = DIVS[e.div] || {label:'Debt', badge:'b-debt'};
+    const isTransfer = e.source === '_transfer_';
+    tbl += `<tr>
+      <td style="color:var(--muted);white-space:nowrap">${e.date}</td>
+      <td><span class="badge ${d.badge}">${d.label}</span></td>
+      <td class="t-${e.type.toLowerCase()}">${isTransfer ? '↔ ' : ''}${typeLabel(e.type)}${e.person ? ' — ' + escHtml(e.person) : ''}</td>
+      <td style="font-weight:700;white-space:nowrap">${fmt(e.amount,e.currency)}</td>
+      <td style="color:var(--muted)">${escHtml(e.desc||e.source||'—')}</td>
+    </tr>`;
+  });
+  tbl += '</tbody></table>';
+  if (entries.length > 8) tbl += `<p style="font-size:12px;color:var(--muted);margin-top:10px;text-align:center">${entries.length-8} more in Transactions tab</p>`;
+  document.getElementById('dash-recent').innerHTML = tbl;
+}
+
+// ── RENDER: TRANSACTIONS ─────────────────────────────────────────
+/**
+ * Get filtered entries based on current filter bar + search input.
+ * @returns {Array}
+ */
+function getFilteredEntries() {
+  const fd = document.getElementById('fl-div').value;
+  const ft = document.getElementById('fl-type').value;
+  const fm = document.getElementById('fl-month').value;
+  const fc = document.getElementById('fl-cur').value;
+  const fq = (document.getElementById('search-input').value || '').trim().toLowerCase();
+
+  return entries.filter(e => {
+    const divMatch  = fd === 'all' || (fd === 'debt' && e.div === 'debt') || (fd !== 'debt' && e.div === fd);
+    const typeMatch = ft === 'all' || e.type === ft;
+    const monMatch  = fm === 'all' || e.date.slice(0,7) === fm;
+    const curMatch  = fc === 'all' || e.currency === fc;
+    const srchMatch = !fq ||
+      (e.desc   && e.desc.toLowerCase().includes(fq))   ||
+      (e.source && e.source.toLowerCase().includes(fq)) ||
+      (e.person && e.person.toLowerCase().includes(fq)) ||
+      String(e.amount).includes(fq);
+    return divMatch && typeMatch && monMatch && curMatch && srchMatch;
+  });
+}
+
+/** Render the Transactions tab table. */
+function renderLog() {
+  const filtered = getFilteredEntries();
+  const fq = (document.getElementById('search-input').value || '').trim();
+  const recurMeta = JSON.parse(localStorage.getItem(RECURRING_KEY) || '{}');
+
+  if (!filtered.length) {
+    document.getElementById('log-table').innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><p>No transactions match your search or filters.</p></div>';
+    return;
+  }
+
+  let h = '<table><thead><tr><th>Date</th><th>Division</th><th>Type</th><th>Person</th><th>Amount</th><th>Source</th><th>Description</th><th></th></tr></thead><tbody>';
+  filtered.forEach(e => {
+    const d = DIVS[e.div] || {label:'Debt', badge:'b-debt'};
+    const isTransfer  = e.source === '_transfer_';
+    const isRecurring = !!recurMeta[String(e.id)];
+    h += `<tr>
+      <td style="color:var(--muted);white-space:nowrap">${e.date}</td>
+      <td><span class="badge ${d.badge}">${d.label}</span></td>
+      <td class="t-${e.type.toLowerCase()}">${isTransfer ? '↔ ' : ''}${typeLabel(e.type)}${isRecurring ? ' 🔄' : ''}</td>
+      <td style="color:var(--muted)">${highlight(e.person || '—', fq)}</td>
+      <td style="font-weight:700;white-space:nowrap">${fmt(e.amount,e.currency)}</td>
+      <td style="color:var(--muted)">${highlight(e.source || '—', fq)}</td>
+      <td style="color:var(--muted);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(e.desc||'')}">${highlight(e.desc || '—', fq)}</td>
+      <td><button class="btn-del" onclick="deleteEntry(${e.id})">✕</button></td>
+    </tr>`;
+  });
+  h += '</tbody></table>';
+  document.getElementById('log-table').innerHTML = h;
+}
+
+/** Populate the month filter dropdown from available entry dates. */
+function populateMonths() {
+  const months = [...new Set(entries.map(e => e.date.slice(0,7)))].sort().reverse();
+  const sel = document.getElementById('fl-month');
+  sel.innerHTML = '<option value="all">All months</option>';
+  months.forEach(m => {
+    const [y, mo] = m.split('-');
+    sel.innerHTML += `<option value="${m}">${new Date(+y,+mo-1,1).toLocaleString('en-US',{month:'long',year:'numeric'})}</option>`;
+  });
+}
+
+// ── RENDER: DEBTS ────────────────────────────────────────────────
+/** Render the Debts tab and update the overdue badge. */
+function renderDebts() {
+  const people = {};
+  const today = new Date().toISOString().split('T')[0];
+
+  entries.forEach(e => {
+    if (!e.person) return;
+    const p = e.person.trim();
+    if (!people[p]) people[p] = {name:p, lIQD:0, lUSD:0, bIQD:0, bUSD:0, origL:0, paidL:0, origB:0, paidB:0, lDue:'', bDue:''};
+    const c = e.currency;
+    if (e.type === 'lent') {
+      c==='IQD' ? (people[p].lIQD+=e.amount, people[p].origL+=e.amount) : (people[p].lUSD+=e.amount);
+      if (e.due && (!people[p].lDue || e.due < people[p].lDue)) people[p].lDue = e.due;
+    } else if (e.type === 'borrowed') {
+      c==='IQD' ? (people[p].bIQD+=e.amount, people[p].origB+=e.amount) : (people[p].bUSD+=e.amount);
+      if (e.due && (!people[p].bDue || e.due < people[p].bDue)) people[p].bDue = e.due;
+    } else if (e.type === 'repay_in') {
+      c==='IQD' ? (people[p].lIQD-=e.amount, people[p].paidL+=e.amount) : (people[p].lUSD-=e.amount);
+    } else if (e.type === 'repay_out') {
+      c==='IQD' ? (people[p].bIQD-=e.amount, people[p].paidB+=e.amount) : (people[p].bUSD-=e.amount);
+    }
+  });
+
+  const lenders   = Object.values(people).filter(p => p.lIQD > 0.1 || p.lUSD > 0.1);
+  const borrowers = Object.values(people).filter(p => p.bIQD > 0.1 || p.bUSD > 0.1);
+
+  // Overdue count for badge
+  const overdueCount =
+    lenders.filter(p => p.lDue && p.lDue < today).length +
+    borrowers.filter(p => p.bDue && p.bDue < today).length;
+
+  const badge = document.getElementById('debt-badge');
+  badge.textContent = overdueCount;
+  badge.style.display = overdueCount > 0 ? 'inline-flex' : 'none';
+
+  const tlIQD = lenders.reduce((s,p) => s + Math.max(0,p.lIQD), 0);
+  const tbIQD = borrowers.reduce((s,p) => s + Math.max(0,p.bIQD), 0);
+  document.getElementById('debt-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Owed to me (IQD)</div><div class="metric-val v-in">${fmt(tlIQD,'IQD')}</div></div>
+    <div class="metric"><div class="metric-label">I owe (IQD)</div><div class="metric-val v-out">${fmt(tbIQD,'IQD')}</div></div>
+    ${overdueCount > 0 ? `<div class="metric"><div class="metric-label">Overdue debts</div><div class="metric-val v-out">${overdueCount}</div></div>` : ''}`;
+
+  /** Build a debt person card. */
+  function debtCard(p, mode) {
+    const oIQD   = mode==='lent' ? p.lIQD : p.bIQD;
+    const oUSD   = mode==='lent' ? p.lUSD : p.bUSD;
+    const orig   = mode==='lent' ? p.origL : p.origB;
+    const paid   = mode==='lent' ? p.paidL : p.paidB;
+    const due    = mode==='lent' ? p.lDue  : p.bDue;
+    const pct    = orig > 0 ? Math.min(100, Math.round(paid / orig * 100)) : 0;
+    const col    = mode==='lent' ? 'var(--purple-d)' : 'var(--amber-d)';
+    const bar    = mode==='lent' ? 'var(--purple)'   : 'var(--amber)';
+    const isOver = due && due < today;
+    return `<div class="debt-person${isOver ? ' debt-overdue' : ''}">
+      <div class="debt-person-top">
+        <div>
+          <div class="debt-name" style="color:${isOver ? 'var(--red)' : col}">${escHtml(p.name)}</div>
+          ${due ? `<div class="debt-due">${isOver ? '⚠ Overdue: ' : 'Due: '}${due}</div>` : ''}
+        </div>
+        <button class="btn-pay" onclick="openModal('${escHtml(p.name)}','${mode==='lent'?'repay_in':'repay_out'}','${mode}')">${mode==='lent'?'Got paid':'I paid'}</button>
+      </div>
+      <div class="debt-row">
+        <div class="debt-mini"><div class="debt-mini-lbl">IQD left</div><div class="debt-mini-val" style="color:${col}">${fmt(Math.max(0,oIQD),'IQD')}</div></div>
+        <div class="debt-mini"><div class="debt-mini-lbl">USD left</div><div class="debt-mini-val" style="color:${col}">${fmt(Math.max(0,oUSD),'USD')}</div></div>
+        <div class="debt-mini"><div class="debt-mini-lbl">Repaid</div><div class="debt-mini-val">${pct}%</div></div>
+      </div>
+      ${orig > 0 ? `<div class="prog-wrap"><div class="prog-bar" style="width:${pct}%;background:${bar}"></div></div><div style="font-size:10px;color:var(--muted);margin-top:4px">${fmt(paid,'IQD')} of ${fmt(orig,'IQD')} repaid</div>` : ''}
+    </div>`;
+  }
+
+  document.getElementById('debt-lent').innerHTML     = lenders.length   ? lenders.map(p=>debtCard(p,'lent')).join('')     : '<div class="empty-state"><div class="empty-icon">💰</div><p>No active loans out.</p></div>';
+  document.getElementById('debt-borrowed').innerHTML = borrowers.length ? borrowers.map(p=>debtCard(p,'borrowed')).join('') : '<div class="empty-state"><div class="empty-icon">✅</div><p>No active debts.</p></div>';
+}
+
+// ── RENDER: MONTHLY ──────────────────────────────────────────────
+/** Render the Monthly tab (budgets + chart + table). */
+function renderMonthly() {
+  renderBudgets();
+
+  const bm = {};
+  entries.filter(e => ['Deposit','Withdrawal'].includes(e.type) && e.currency === 'IQD').forEach(e => {
+    const m = e.date.slice(0,7);
+    if (!bm[m]) bm[m] = {in:0, out:0};
+    e.type === 'Deposit' ? bm[m].in += e.amount : bm[m].out += e.amount;
+  });
+  const months = Object.keys(bm).sort();
+  if (!months.length) {
+    document.getElementById('monthly-content').innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div><p>No monthly data yet.</p></div>';
+    return;
+  }
+  const maxV = Math.max(...months.map(m => Math.max(bm[m].in, bm[m].out)));
+  let bars = '<div class="month-chart">';
+  months.forEach(m => {
+    const dm = bm[m];
+    const hI = maxV > 0 ? Math.round((dm.in / maxV) * 95) : 2;
+    const hO = maxV > 0 ? Math.round((dm.out / maxV) * 95) : 2;
+    const [y, mo] = m.split('-');
+    const lbl = new Date(+y,+mo-1,1).toLocaleString('en-US',{month:'short'}) + "'" + y.slice(2);
+    bars += `<div class="month-col"><div class="month-bars"><div class="bar bar-d" style="height:${hI}px;width:11px" title="${fmt(dm.in,'IQD')}"></div><div class="bar bar-w" style="height:${hO}px;width:11px" title="${fmt(dm.out,'IQD')}"></div></div><div class="bar-lbl">${lbl}</div></div>`;
+  });
+  bars += `</div><div class="month-legend"><span><span class="leg-dot" style="background:var(--teal)"></span>Deposits</span><span><span class="leg-dot" style="background:var(--red);opacity:.75"></span>Withdrawals</span></div>`;
+
+  let tbl = '<table><thead><tr><th>Month</th><th>Deposits (IQD)</th><th>Withdrawals (IQD)</th><th>Net (IQD)</th></tr></thead><tbody>';
+  months.slice().reverse().forEach(m => {
+    const dm = bm[m]; const net = dm.in - dm.out;
+    const [y, mo] = m.split('-');
+    const lbl = new Date(+y,+mo-1,1).toLocaleString('en-US',{month:'long',year:'numeric'});
+    tbl += `<tr><td style="font-weight:600">${lbl}</td><td class="t-deposit">${fmt(dm.in,'IQD')}</td><td class="t-withdrawal">${fmt(dm.out,'IQD')}</td><td style="font-weight:700;color:${net>=0?'var(--teal-d)':'var(--red)'}">${net>=0?'+':''}${net.toLocaleString('en-US',{maximumFractionDigits:0})} IQD</td></tr>`;
+  });
+  tbl += '</tbody></table>';
+  document.getElementById('monthly-content').innerHTML = bars + tbl;
+}
+
+/** Render monthly budget section for the current month. */
+function renderBudgets() {
+  const budgets = JSON.parse(localStorage.getItem(BUDGET_KEY) || '{}');
+  const currentMonth = new Date().toISOString().slice(0,7);
+  const [cy, cm] = currentMonth.split('-');
+  const monthName = new Date(+cy,+cm-1,1).toLocaleString('en-US',{month:'long',year:'numeric'});
+
+  // Actual withdrawals per division for current month
+  const spending = {};
+  Object.keys(DIVS).forEach(d => spending[d] = 0);
+  entries.filter(e => e.type === 'Withdrawal' && e.currency === 'IQD' && e.date.slice(0,7) === currentMonth)
+    .forEach(e => { if (spending[e.div] !== undefined) spending[e.div] += e.amount; });
+
+  const rows = Object.entries(DIVS).map(([k, d]) => {
+    const budget = budgets[`${k}_${currentMonth}`] || 0;
+    const spent  = spending[k] || 0;
+    const pct    = budget > 0 ? Math.min(110, Math.round(spent / budget * 100)) : 0;
+    const barClr = pct >= 100 ? 'var(--red)' : pct >= 75 ? 'var(--amber)' : 'var(--teal)';
+    return `<div class="budget-div-card">
+      <div class="budget-div-header">
+        <span class="badge ${d.badge}">${d.label}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="number" class="budget-input" placeholder="Budget..." value="${budget || ''}"
+            onchange="saveBudget('${k}','${currentMonth}',this.value)" min="0"/>
+          <span style="font-size:11px;color:var(--muted)">IQD</span>
+        </div>
+      </div>
+      ${budget > 0 ? `
+        <div style="margin-top:6px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:3px">
+            <span>Spent: ${fmt(spent,'IQD')}</span>
+            <span style="color:${barClr};font-weight:700">${pct}%</span>
+          </div>
+          <div class="budget-bar-wrap"><div class="budget-bar-fill" style="width:${pct}%;background:${barClr}"></div></div>
+          <div style="font-size:10px;color:var(--muted);margin-top:3px">of ${fmt(budget,'IQD')} budget</div>
+        </div>` : ''}
+    </div>`;
+  }).join('');
+
+  document.getElementById('budget-section').innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">Monthly budgets — ${monthName}</div>
+      <div class="budget-grid">${rows}</div>
+    </div>`;
+}
+
+/**
+ * Save a budget for a division/month to localStorage.
+ * @param {string} divKey
+ * @param {string} month YYYY-MM
+ * @param {string|number} value
+ */
+function saveBudget(divKey, month, value) {
+  const budgets = JSON.parse(localStorage.getItem(BUDGET_KEY) || '{}');
+  const v = parseFloat(value);
+  if (v > 0) budgets[`${divKey}_${month}`] = v;
+  else delete budgets[`${divKey}_${month}`];
+  try { localStorage.setItem(BUDGET_KEY, JSON.stringify(budgets)); } catch(e) {}
+  renderBudgets();
+}
+
+// ── ADD ENTRY ────────────────────────────────────────────────────
+/** Handle Add Entry form submission. */
+async function addEntry() {
+  const isDebt     = ['lent','borrowed','repay_in','repay_out'].includes(curType);
+  const isTransfer = curType === 'transfer';
+  const cur        = document.getElementById('f-cur').value;
+  const amount     = parseFloat(document.getElementById('f-amount').value);
+  const source     = document.getElementById('f-source').value.trim();
+  const desc       = document.getElementById('f-desc').value.trim();
+  const date       = document.getElementById('f-date').value;
+  const person     = isDebt ? document.getElementById('f-person').value.trim() : '';
+  const due        = isDebt ? document.getElementById('f-due').value : '';
+  const recurFreq  = document.getElementById('f-recurring').value;
+
+  if (!amount || amount <= 0) { toast('Enter a valid amount.', true); return; }
+  if (!source && !desc)       { toast('Enter a source or description.', true); return; }
+  if (!date)                  { toast('Select a date.', true); return; }
+  if (isDebt && !person)      { toast('Enter a person name.', true); return; }
+
+  const btn = document.getElementById('btn-add');
+  btn.disabled = true;
+
+  try {
+    if (isTransfer) {
+      // Transfer: create two linked entries
+      const fromDiv   = document.getElementById('f-div').value;
+      const toDiv     = document.getElementById('f-to-div').value;
+      if (fromDiv === toDiv) { toast('Cannot transfer to the same division.', true); btn.disabled=false; return; }
+      const fromLabel = DIVS[fromDiv].label;
+      const toLabel   = DIVS[toDiv].label;
+      const ts        = Date.now();
+      entries.unshift(
+        {id:ts+1, date, div:toDiv,   type:'transfer_in',  source:'_transfer_', desc:`Transfer ← ${fromLabel}`, currency:cur, amount, signed: amount,  person:'', due:''},
+        {id:ts,   date, div:fromDiv, type:'transfer_out', source:'_transfer_', desc:`Transfer → ${toLabel}`,   currency:cur, amount, signed:-amount, person:'', due:''}
+      );
+      toast(`↔ Transferred ${fmt(amount,cur)}: ${fromLabel} → ${toLabel}`);
+    } else {
+      const div    = isDebt ? 'debt' : document.getElementById('f-div').value;
+      const signed = ['Deposit','lent','repay_in'].includes(curType) ? amount : -amount;
+      const entry  = {id:Date.now(), date, div, type:curType, source, desc, currency:cur, amount, signed, person, due};
+      entries.unshift(entry);
+
+      // Store recurring metadata
+      if (recurFreq !== 'none') {
+        const meta = JSON.parse(localStorage.getItem(RECURRING_KEY) || '{}');
+        meta[String(entry.id)] = { freq: recurFreq, lastGenDate: date };
+        try { localStorage.setItem(RECURRING_KEY, JSON.stringify(meta)); } catch(e) {}
+      }
+      toast('Entry added!');
+    }
+
+    // Reset form fields
+    ['f-amount','f-source','f-desc','f-person','f-due'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f-date').value     = new Date().toISOString().split('T')[0];
+    document.getElementById('f-recurring').value = 'none';
+
+    renderAll();
+    await saveToSheets();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── DELETE / CONFIRM ─────────────────────────────────────────────
+/**
+ * Show the confirmation modal and run callback on confirm.
+ * @param {string} msg
+ * @param {Function} onConfirm
+ */
+function confirmAction(msg, onConfirm) {
+  document.getElementById('confirm-msg').textContent = msg;
+  confirmCallback = onConfirm;
+  document.getElementById('confirm-modal').classList.add('open');
+}
+
+document.getElementById('confirm-ok').onclick = () => {
+  document.getElementById('confirm-modal').classList.remove('open');
+  if (confirmCallback) { confirmCallback(); confirmCallback = null; }
+};
+document.getElementById('confirm-cancel').onclick = () => {
+  document.getElementById('confirm-modal').classList.remove('open');
+  confirmCallback = null;
+};
+
+/**
+ * Delete a transaction by id (with confirmation).
+ * @param {number} id
+ */
+function deleteEntry(id) {
+  confirmAction('Delete this transaction? This cannot be undone.', async () => {
+    // Also remove linked transfer pair
+    const target = entries.find(e => e.id === id);
+    if (target && target.source === '_transfer_') {
+      // Remove both the out and in by matching date, amount, currency, _transfer_ source
+      entries = entries.filter(e =>
+        !(e.source === '_transfer_' && e.date === target.date &&
+          e.amount === target.amount && e.currency === target.currency)
+      );
+    } else {
+      entries = entries.filter(e => e.id !== id);
+    }
+    // Remove from recurring if present
+    const meta = JSON.parse(localStorage.getItem(RECURRING_KEY) || '{}');
+    if (meta[String(id)]) {
+      delete meta[String(id)];
+      try { localStorage.setItem(RECURRING_KEY, JSON.stringify(meta)); } catch(e) {}
+    }
+    renderAll();
+    renderLog();
+    toast('Entry deleted.');
+    await saveToSheets();
+  });
+}
+
+// ── EXPORT MODULE ────────────────────────────────────────────────
+/** Export filtered transactions as a PDF via browser print dialog. */
+function exportPDF() {
+  const filtered = getFilteredEntries();
+  if (!filtered.length) { toast('No transactions to export.', true); return; }
+  const now = new Date().toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  let rows = filtered.map(e => {
+    const d = DIVS[e.div] || {label:'Debt'};
+    return `<tr>
+      <td>${e.date}</td><td>${d.label}</td><td>${typeLabel(e.type)}</td>
+      <td>${escHtml(e.person||'—')}</td><td>${fmt(e.amount,e.currency)}</td>
+      <td>${escHtml(e.source||'—')}</td><td>${escHtml(e.desc||'—')}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('print-area').innerHTML = `
+    <div class="print-header">
+      <h2>🏦 Home Safe Tracker</h2>
+      <p>Exported on ${now} · ${filtered.length} transactions</p>
+    </div>
+    <table>
+      <thead><tr><th>Date</th><th>Division</th><th>Type</th><th>Person</th><th>Amount</th><th>Source</th><th>Description</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  window.print();
+}
+
+/** Export filtered transactions as an Excel .xlsx file using SheetJS. */
+function exportXLSX() {
+  if (typeof XLSX === 'undefined') { toast('Excel export unavailable — check connection.', true); return; }
+  const filtered = getFilteredEntries();
+  if (!filtered.length) { toast('No transactions to export.', true); return; }
+  const wsData = [
+    ['Date','Division','Type','Person','Amount','Currency','Source','Description'],
+    ...filtered.map(e => [
+      e.date,
+      (DIVS[e.div]||{label:'Debt'}).label,
+      typeLabel(e.type),
+      e.person || '',
+      e.amount,
+      e.currency,
+      e.source || '',
+      e.desc   || ''
+    ])
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  // Auto-width
+  ws['!cols'] = [10,14,16,14,12,10,16,24].map(w=>({wch:w}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+  XLSX.writeFile(wb, `HomeSafe_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// ── RECURRING MODULE ─────────────────────────────────────────────
+/**
+ * Calculate the next occurrence date from a given date + frequency.
+ * @param {string} fromDate YYYY-MM-DD
+ * @param {'daily'|'weekly'|'monthly'} freq
+ * @returns {string} YYYY-MM-DD
+ */
+function nextDueDate(fromDate, freq) {
+  const d = new Date(fromDate);
+  if (freq === 'daily')        d.setDate(d.getDate() + 1);
+  else if (freq === 'weekly')  d.setDate(d.getDate() + 7);
+  else if (freq === 'monthly') d.setMonth(d.getMonth() + 1);
+  return d.toISOString().split('T')[0];
+}
+
+/**
+ * Check for due recurring entries and auto-generate them.
+ * Saves to Sheets if new entries are created.
+ */
+async function processRecurring() {
+  const meta  = JSON.parse(localStorage.getItem(RECURRING_KEY) || '{}');
+  const today = new Date().toISOString().split('T')[0];
+  const generated = [];
+
+  for (const [idStr, rec] of Object.entries(meta)) {
+    const source = entries.find(e => String(e.id) === idStr);
+    if (!source) continue;
+
+    let lastDate  = rec.lastGenDate || source.date;
+    let next      = nextDueDate(lastDate, rec.freq);
+    let safeLimit = 90; // prevent infinite loop
+
+    while (next <= today && safeLimit-- > 0) {
+      generated.push({ ...source, id: Date.now() + Math.random(), date: next });
+      lastDate = next;
+      next     = nextDueDate(lastDate, rec.freq);
+    }
+    meta[idStr].lastGenDate = lastDate;
+  }
+
+  if (generated.length) {
+    entries.unshift(...generated);
+    try { localStorage.setItem(RECURRING_KEY, JSON.stringify(meta)); } catch(e) {}
+    await saveToSheets();
+    toast(`🔄 ${generated.length} recurring entr${generated.length > 1 ? 'ies' : 'y'} added`);
+  }
+}
+
+// ── REPAYMENT MODAL ──────────────────────────────────────────────
+/**
+ * Open the repayment modal for a person.
+ * @param {string} person
+ * @param {string} rtype 'repay_in'|'repay_out'
+ * @param {string} mode 'lent'|'borrowed'
+ */
+function openModal(person, rtype, mode) {
+  mCtx = {person, rtype};
+  document.getElementById('modal-title').textContent = mode==='lent' ? `Payment received from ${person}` : `Payment made to ${person}`;
+  document.getElementById('m-date').value   = new Date().toISOString().split('T')[0];
+  document.getElementById('m-amount').value = '';
+  document.getElementById('m-note').value   = '';
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+async function submitRepay() {
+  const amount = parseFloat(document.getElementById('m-amount').value);
+  const cur    = document.getElementById('m-cur').value;
+  const date   = document.getElementById('m-date').value;
+  const note   = document.getElementById('m-note').value.trim();
+  if (!amount || amount <= 0) { toast('Enter a valid amount.', true); return; }
+  const signed = mCtx.rtype === 'repay_in' ? amount : -amount;
+  entries.unshift({id:Date.now(), date, div:'debt', type:mCtx.rtype, source:'repayment', desc:note||'Repayment', currency:cur, amount, signed, person:mCtx.person, due:''});
+  closeModal();
+  renderAll();
+  toast('Repayment logged!');
+  await saveToSheets();
+}
+
+// ── TOAST ────────────────────────────────────────────────────────
+/**
+ * Show a toast notification.
+ * @param {string} msg
+ * @param {boolean} isError
+ */
+function toast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = 'toast' + (isError ? ' error' : '') + ' show';
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── TABS ─────────────────────────────────────────────────────────
+/**
+ * Switch the active tab.
+ * @param {string} id
+ * @param {HTMLElement} el
+ */
+function switchTab(id, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('visible');
+  el.classList.add('active');
+  if (id === 'dashboard') renderDashboard();
+  if (id === 'log')       { populateMonths(); renderLog(); }
+  if (id === 'debts')     renderDebts();
+  if (id === 'monthly')   renderMonthly();
+}
+
+/** Re-render all major sections. */
+function renderAll() { renderDashboard(); renderDebts(); }
+
+// ── PILLS SETUP ──────────────────────────────────────────────────
+const PILL_DEFS = [
+  {id:'Deposit',     label:'+ Deposit',     c:'deposit'},
+  {id:'Withdrawal',  label:'− Withdrawal',  c:'withdrawal'},
+  {id:'lent',        label:'💸 I lent',      c:'lent'},
+  {id:'borrowed',    label:'📥 I borrowed',  c:'borrowed'},
+  {id:'repay_in',    label:'✅ Got repaid',  c:'repay_in'},
+  {id:'repay_out',   label:'📤 I repaid',    c:'repay_out'},
+  {id:'transfer',    label:'↔ Transfer',    c:'transfer'},
+];
+
+PILL_DEFS.forEach(p => {
+  const b = document.createElement('button');
+  b.className = 'pill' + (p.id === 'Deposit' ? ' p-on deposit' : '');
+  b.textContent = p.label;
+  b.onclick = () => {
+    document.querySelectorAll('.pill').forEach(x => x.className = 'pill');
+    b.className = `pill p-on ${p.c}`;
+    curType = p.id;
+
+    const isDebt     = ['lent','borrowed','repay_in','repay_out'].includes(p.id);
+    const isTransfer = p.id === 'transfer';
+
+    document.querySelectorAll('.debt-extra').forEach(d => d.classList.toggle('show', isDebt));
+    document.getElementById('field-div').style.display    = isDebt ? 'none' : '';
+    document.getElementById('field-to-div').style.display = isTransfer ? '' : 'none';
+    document.getElementById('field-recurring').style.display = isDebt ? 'none' : '';
+
+    const divLbl = document.getElementById('lbl-div');
+    if (divLbl) divLbl.textContent = isTransfer ? 'From Division' : 'Division';
+
+    if (isDebt) {
+      document.getElementById('lbl-person').textContent =
+        p.id==='lent' ? 'Lent to' : p.id==='borrowed' ? 'Borrowed from' :
+        p.id==='repay_in' ? 'Received from' : 'Paid to';
+    }
+  };
+  document.getElementById('pill-row').appendChild(b);
+});
+
+// ── SKELETON ────────────────────────────────────────────────────
+/** Show skeleton placeholders while data loads. */
+function showSkeletons() {
+  document.getElementById('div-cards').innerHTML =
+    Array(4).fill('<div class="div-card skeleton" style="height:100px"></div>').join('');
+  document.getElementById('dash-metrics').innerHTML =
+    Array(5).fill('<div class="metric skeleton" style="height:62px"></div>').join('');
+  document.getElementById('dash-recent').innerHTML =
+    Array(5).fill('<div class="skeleton" style="height:38px;margin-bottom:6px"></div>').join('');
+}
+
+// ── DEBOUNCED SEARCH ─────────────────────────────────────────────
+document.getElementById('search-input').addEventListener('input', debounce(renderLog, 250));
+
+// ── BOOT ─────────────────────────────────────────────────────────
+document.getElementById('f-date').value  = new Date().toISOString().split('T')[0];
+document.getElementById('m-date').value  = new Date().toISOString().split('T')[0];
+document.getElementById('hdr-date').textContent = new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+
+(async () => {
+  loadSettings();
+  initDarkMode();
+  showSkeletons();
+
+  setLoadingMsg('Connecting to Google Sheets...', 20);
+  await loadFromSheets();
+  await processRecurring();
+
+  setLoadingMsg('Ready!', 100);
+  setTimeout(() => {
+    document.getElementById('loading-screen').classList.add('hidden');
+    setTimeout(() => document.getElementById('loading-screen').style.display = 'none', 400);
+  }, 500);
+
+  renderAll();
+  resetInactivityTimer();
+})();
+</script>
+</body>
+</html>
